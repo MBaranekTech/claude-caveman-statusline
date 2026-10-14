@@ -2,7 +2,7 @@
 
 A compact, Codex-style status line for [Claude Code](https://docs.claude.com/en/docs/claude-code) that shows the [caveman](https://github.com/JuliusBrussee/caveman) mode badge, the current model, context usage, session cost in USD, and **how much of your 5-hour and weekly usage is left**, as a colored progress bar.
 
-![claude-caveman-statusline in action](screenshot.png)
+
 
 It's one small Bash script and needs no background process, API calls, or token handling.
 
