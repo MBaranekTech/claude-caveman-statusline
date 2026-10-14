@@ -1,6 +1,6 @@
 # 🪨 claude-caveman-statusline
 
-A compact, Codex-style status line for [Claude Code](https://docs.claude.com/en/docs/claude-code) that shows the [caveman](https://github.com/JuliusBrussee/caveman) mode badge, the current model, context usage, and **how much of your 5-hour and weekly usage is left**, as a colored progress bar.
+A compact, Codex-style status line for [Claude Code](https://docs.claude.com/en/docs/claude-code) that shows the [caveman](https://github.com/JuliusBrussee/caveman) mode badge, the current model, context usage, session cost in USD, and **how much of your 5-hour and weekly usage is left**, as a colored progress bar.
 
 ![claude-caveman-statusline in action](screenshot.png)
 
@@ -11,6 +11,7 @@ It's one small Bash script and needs no background process, API calls, or token 
 - **Caveman badge**: 🪨 when caveman mode is on, 🪨LITE / 🪨ULTRA for other levels, and hidden when caveman is not installed.
 - **Model and folder**: shows the active model and the current working directory.
 - **Context usage**: shows the percentage of the context window used.
+- **Session cost**: shows the cost of the current session in USD, as reported by Claude Code.
 - **5-hour limit**: a thin progress bar of the *remaining* usage, plus the time until the window resets.
 - **Weekly limit**: shows the remaining weekly usage as a percentage.
 - **Color thresholds**: green above 50% left, yellow above 20%, and red below that.
@@ -97,14 +98,14 @@ The status line appears at the bottom of the screen.
 ## Test without Claude Code
 
 ```bash
-echo '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"/home/me/proj"},"context_window":{"used_percentage":34},"rate_limits":{"five_hour":{"used_percentage":40,"resets_at":'$(( $(date +%s)+7800 ))'},"seven_day":{"used_percentage":72}}}' \
+echo '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"/home/me/proj"},"context_window":{"used_percentage":34},"cost":{"total_cost_usd":1.2345},"rate_limits":{"five_hour":{"used_percentage":40,"resets_at":'$(( $(date +%s)+7800 ))'},"seven_day":{"used_percentage":72}}}' \
   | ~/.claude/statusline.sh
 ```
 
 Expected output:
 
 ```
-🪨 Opus · proj · ctx 34% · 5h ▰▰▰▱▱ 60% 2h10 · wk 28%
+🪨 Opus · proj · ctx 34% · $1.23 · 5h ▰▰▰▱▱ 60% 2h10 · wk 28%
 ```
 
 ## How it works
@@ -116,8 +117,11 @@ On every refresh, Claude Code pipes a JSON object with session data to the scrip
 | `model.display_name` | Model name |
 | `workspace.current_dir` | Folder name |
 | `context_window.used_percentage` | `ctx N%` |
+| `cost.total_cost_usd` | `$N.NN` |
 | `rate_limits.five_hour.used_percentage` / `resets_at` | `5h` bar and reset countdown |
 | `rate_limits.seven_day.used_percentage` | `wk N%` |
+
+The session cost is Claude Code's own estimate for the current session, at API prices. On a Pro/Max plan it shows what the session would cost at API rates, not what you are billed.
 
 The caveman plugin's SessionStart hook writes the current mode to `~/.claude/.caveman-active` (or `$CLAUDE_CONFIG_DIR/.caveman-active`), and the script reads that file to show the badge.
 
@@ -128,6 +132,7 @@ Edit `~/.claude/statusline.sh`. Changes apply on the next refresh, without a res
 | Want to… | Do this |
 |---|---|
 | Hide context % | Delete the `[ -n "$ctx" ]` line |
+| Hide session cost | Delete the `[ -n "$cost" ]` line |
 | Hide folder name | Remove `· ${dir}` from the `out=` line |
 | Wider bar | Change `w=5` in `bar()` |
 | Different bar style | Replace `▰` / `▱` with `█` / `░` or `●` / `○` |
@@ -168,7 +173,7 @@ This project is not affiliated with Anthropic or the caveman project.
 #!/usr/bin/env bash
 # claude-caveman-statusline
 # Compact Claude Code status line: caveman badge, model, folder,
-# context usage, and remaining 5-hour / weekly usage.
+# context usage, session cost, and remaining 5-hour / weekly usage.
 # Requires: jq, Claude Code >= 2.1.80 (usage bars need Pro/Max login)
 
 input=$(cat)
@@ -177,6 +182,7 @@ j() { echo "$input" | jq -r "$1 // empty"; }
 model=$(j '.model.display_name')
 dir=$(basename "$(j '.workspace.current_dir')")
 ctx=$(j '.context_window.used_percentage')
+cost=$(j '.cost.total_cost_usd')
 h5=$(j '.rate_limits.five_hour.used_percentage')
 d7=$(j '.rate_limits.seven_day.used_percentage')
 r5=$(j '.rate_limits.five_hour.resets_at')
@@ -210,6 +216,8 @@ fi
 
 out="${cave}${model} · ${dir}"
 [ -n "$ctx" ] && out+=" · ctx ${ctx%.*}%"
+# Session cost in USD (LC_NUMERIC=C so locales with a decimal comma still parse "0.42")
+[ -n "$cost" ] && out+=" · \$$(LC_NUMERIC=C printf '%.2f' "$cost")"
 [ -n "$h5" ]  && out+=" · 5h $(bar "$h5")${reset}"
 if [ -n "$d7" ]; then
   wl=$((100 - ${d7%.*}))
