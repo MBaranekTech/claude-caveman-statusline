@@ -153,18 +153,38 @@ The caveman plugin's SessionStart hook writes the current mode to `~/.claude/.ca
 
 Edit `~/.claude/statusline.sh`. Changes apply on the next refresh, without a restart.
 
+**Where you work**
+
+| Want to… | Do this |
+|---|---|
+| Hide the caveman badge | Change `"${cave}\e[1m${model}\e[0m"` to `"\e[1m${model}\e[0m"` in the `l1=` line |
+| Hide the project name | Remove `"${where}"` from the `l1=` line |
+| Hide the git worktree | Delete the `[ -n "$wt" ]` line |
+| Hide the scratchpad link | Delete the `[ -n "$scratch" ]` line |
+
+**What you use**
+
 | Want to… | Do this |
 |---|---|
 | Hide context % | Delete the `[ -n "$ctx" ]` line |
 | Hide session cost | Delete the `[ -n "$cost" ]` line |
-| Hide project name | Remove `"${where}"` from the `l1=` line |
-| Always two rows | Replace the `if`/`else` block at the end with its two-row branch |
-| Hide scratchpad link | Delete the `[ -n "$scratch" ]` line |
-| Hide reset countdowns | Remove `$(until_reset ...)` from the `5h` / `wk` lines |
+| Hide the 5-hour limit | Delete the `[ -n "$h5" ]` line |
+| Hide the weekly limit | Delete the `if [ -n "$d7" ]` block, up to its `fi` |
+| Hide reset countdowns | Delete `$(until_reset "$r5")` and `$(until_reset "$r7")` |
 | Wider bar | Change `w=5` in `bar()` |
 | Different bar style | Replace `▰` / `▱` with `█` / `░` or `●` / `○` |
-| No emoji | Replace `🪨` with `CM` |
-| Change thresholds | Edit the numbers in `col()` |
+| Change color thresholds | Edit `50` and `20` in `col()` |
+
+**Layout**
+
+| Want to… | Do this |
+|---|---|
+| Always two rows | Replace the `if [ -n "$COLUMNS" ] ...` line with `if true; then` |
+| Different separator | Change `\|` in `sep=" \e[2m\|\e[0m "`, for example to `-` or `/` |
+| Move an item | Move its `l1+=` / `l2+=` line. The order of the lines is the order on the bar |
+| No emoji | Replace `🪨` with `CM` and `📂` with `tmp` |
+
+> 💡 Prefer ASCII or common emoji for separators and labels. Box-drawing and symbol glyphs such as `│`, `⎇` or `↻` can overlap their neighbours in tmux. If you add a new emoji, also add it to `[^🪨📂]` in `width()`, so the row still splits at the right width.
 
 ## Troubleshooting
 
