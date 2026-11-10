@@ -8,17 +8,32 @@ It's one small Bash script and needs no background process, API calls, or token 
 
 ## Features
 
-The status line is one row: first where you work (model, project, worktree, scratchpad), then what you use (context, cost, limits). When the row is wider than the terminal, it splits into two rows at that point, so nothing is cut off.
+```
+🪨 Opus 5.5 | proj/src | wt feature-xyz | 📂 2 | ctx 34% | $1.23 | 5h ▰▰▰▱▱ 60% (2h10) | wk 28% (3d04h)
+```
 
-- **Caveman badge**: 🪨 when caveman mode is on, 🪨LITE / 🪨ULTRA for other levels, and hidden when caveman is not installed.
-- **Model and project**: shows the active model and the project folder (where Claude Code was launched). When the working directory moves elsewhere, it is added as `proj/sub`.
-- **Git worktree**: shows `wt name` when you work in a linked git worktree or a Claude Code worktree session.
-- **Context usage**: shows the percentage of the context window used.
-- **Session cost**: shows the cost of the current session in USD, as reported by Claude Code.
-- **5-hour limit**: a thin progress bar of the *remaining* usage, plus the time until the window resets (`(2h10)`).
-- **Weekly limit**: shows the remaining weekly usage as a percentage, plus the time until it resets (`(3d04h)`).
-- **Scratchpad**: `📂 N` shows how many files Claude has in the session's scratchpad folder. It appears only when the folder holds files. Ctrl+click (Cmd+click on macOS) opens the folder, in terminals with OSC 8 hyperlink support.
-- **Color thresholds**: green above 50% left, yellow above 20%, and red below that.
+The left part shows where you work and the right part shows what you use.
+
+**Where you work**
+
+- **Caveman badge**: 🪨 when caveman mode is on, 🪨LITE / 🪨ULTRA for other levels. Hidden when caveman is not installed.
+- **Model**: the active model, in bold.
+- **Project**: the folder where Claude Code was launched. When the working directory moves elsewhere, the subfolder is added, as in `proj/src`.
+- **Git worktree**: `wt name`, shown only in a linked git worktree or a Claude Code worktree session.
+- **Scratchpad**: `📂 N` is the number of files in the session's scratchpad, the folder where Claude keeps its working files. Shown only when the folder holds files. Ctrl+click (Cmd+click on macOS) opens it.
+
+**What you use**
+
+- **Context**: `ctx N%`, the percentage of the context window used.
+- **Session cost**: `$N.NN`, the cost of the current session in USD, as Claude Code reports it.
+- **5-hour limit**: a progress bar of the *remaining* usage, then the time until the window resets, such as `(2h10)`.
+- **Weekly limit**: `wk N%`, the remaining weekly usage, then the time until it resets, such as `(3d04h)`.
+- **Colors**: the remaining usage is green above 50%, yellow above 20%, and red below that.
+
+**Behavior**
+
+- **One row**: everything fits on one row. If the row is wider than the terminal, it splits into two rows between the two parts, so nothing is cut off.
+- **No overlapping characters**: separators and labels are plain ASCII, so the line renders correctly in tmux and other terminals.
 - **Graceful fallback**: any field that Claude Code doesn't send is hidden instead of causing an error.
 
 ## Requirements
