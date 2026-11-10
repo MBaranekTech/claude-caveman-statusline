@@ -1,6 +1,6 @@
 # 🪨 claude-caveman-statusline
 
-A compact, Codex-style status line for [Claude Code](https://docs.claude.com/en/docs/claude-code) that shows the [caveman](https://github.com/JuliusBrussee/caveman) mode badge, the current model, context usage, session cost in USD, and **how much of your 5-hour and weekly usage is left**, as a colored progress bar.
+A compact, Codex-style status line for [Claude Code](https://docs.claude.com/en/docs/claude-code) that shows the [caveman](https://github.com/JuliusBrussee/caveman) mode badge, the current model, project and git worktree, context usage, session cost in USD, **how much of your 5-hour and weekly usage is left** (with reset countdowns), and a clickable link to Claude's working files.
 
 ![claude-caveman-statusline in action](screenshot.png)
 
@@ -8,12 +8,16 @@ It's one small Bash script and needs no background process, API calls, or token 
 
 ## Features
 
+The status line is one row: first where you work (model, project, worktree, scratchpad), then what you use (context, cost, limits). When the row is wider than the terminal, it splits into two rows at that point, so nothing is cut off.
+
 - **Caveman badge**: 🪨 when caveman mode is on, 🪨LITE / 🪨ULTRA for other levels, and hidden when caveman is not installed.
-- **Model and folder**: shows the active model and the current working directory.
+- **Model and project**: shows the active model and the project folder (where Claude Code was launched). When the working directory moves elsewhere, it is added as `proj/sub`.
+- **Git worktree**: shows `wt name` when you work in a linked git worktree or a Claude Code worktree session.
 - **Context usage**: shows the percentage of the context window used.
 - **Session cost**: shows the cost of the current session in USD, as reported by Claude Code.
-- **5-hour limit**: a thin progress bar of the *remaining* usage, plus the time until the window resets.
-- **Weekly limit**: shows the remaining weekly usage as a percentage.
+- **5-hour limit**: a thin progress bar of the *remaining* usage, plus the time until the window resets (`(2h10)`).
+- **Weekly limit**: shows the remaining weekly usage as a percentage, plus the time until it resets (`(3d04h)`).
+- **Scratchpad**: `📂 N` shows how many files Claude has in the session's scratchpad folder. It appears only when the folder holds files. Ctrl+click (Cmd+click on macOS) opens the folder, in terminals with OSC 8 hyperlink support.
 - **Color thresholds**: green above 50% left, yellow above 20%, and red below that.
 - **Graceful fallback**: any field that Claude Code doesn't send is hidden instead of causing an error.
 
@@ -98,30 +102,35 @@ The status line appears at the bottom of the screen.
 ## Test without Claude Code
 
 ```bash
-echo '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"/home/me/proj"},"context_window":{"used_percentage":34},"cost":{"total_cost_usd":1.2345},"rate_limits":{"five_hour":{"used_percentage":40,"resets_at":'$(( $(date +%s)+7800 ))'},"seven_day":{"used_percentage":72}}}' \
+echo '{"model":{"display_name":"Opus"},"workspace":{"current_dir":"/home/me/proj","project_dir":"/home/me/proj","git_worktree":"feature-xyz"},"context_window":{"used_percentage":34},"cost":{"total_cost_usd":1.2345},"rate_limits":{"five_hour":{"used_percentage":40,"resets_at":'$(( $(date +%s)+7800 ))'},"seven_day":{"used_percentage":72,"resets_at":'$(( $(date +%s)+273600 ))'}}}' \
   | ~/.claude/statusline.sh
 ```
 
 Expected output:
 
 ```
-🪨 Opus · proj · ctx 34% · $1.23 · 5h ▰▰▰▱▱ 60% 2h10 · wk 28%
+🪨 Opus | proj | wt feature-xyz | ctx 34% | $1.23 | 5h ▰▰▰▱▱ 60% (2h10) | wk 28% (3d04h)
 ```
 
 ## How it works
 
-On every refresh, Claude Code pipes a JSON object with session data to the script on stdin, and the script prints a single line. The status line reads these fields:
+On every refresh, Claude Code pipes a JSON object with session data to the script on stdin, and the script prints one line. If that line is wider than `$COLUMNS` (which Claude Code sets to the terminal width), the script prints two lines instead, and Claude Code shows each as a separate row. The status line reads these fields:
 
 | Field | Shown as |
 |---|---|
 | `model.display_name` | Model name |
-| `workspace.current_dir` | Folder name |
+| `workspace.project_dir` | Project name |
+| `workspace.current_dir` | `/sub`, only when it differs from the project |
+| `worktree.name` / `workspace.git_worktree` | `wt name` |
 | `context_window.used_percentage` | `ctx N%` |
 | `cost.total_cost_usd` | `$N.NN` |
 | `rate_limits.five_hour.used_percentage` / `resets_at` | `5h` bar and reset countdown |
-| `rate_limits.seven_day.used_percentage` | `wk N%` |
+| `rate_limits.seven_day.used_percentage` / `resets_at` | `wk N%` and reset countdown |
+| `session_id` | Locates the scratchpad folder for `📂 N` |
 
 The session cost is Claude Code's own estimate for the current session, at API prices. On a Pro/Max plan it shows what the session would cost at API rates, not what you are billed.
+
+The scratchpad is the session's temporary folder, `/tmp/claude-<uid>/<project>/<session_id>/scratchpad`. The script finds it by `session_id`, also under `$CLAUDE_CODE_TMPDIR` and `$TMPDIR`, and counts its files. The link is an [OSC 8](https://en.wikipedia.org/wiki/ANSI_escape_code#OSC) `file://` URL. In terminals without hyperlink support, only the text `📂 N` is shown.
 
 The caveman plugin's SessionStart hook writes the current mode to `~/.claude/.caveman-active` (or `$CLAUDE_CONFIG_DIR/.caveman-active`), and the script reads that file to show the badge.
 
@@ -133,7 +142,10 @@ Edit `~/.claude/statusline.sh`. Changes apply on the next refresh, without a res
 |---|---|
 | Hide context % | Delete the `[ -n "$ctx" ]` line |
 | Hide session cost | Delete the `[ -n "$cost" ]` line |
-| Hide folder name | Remove `· ${dir}` from the `out=` line |
+| Hide project name | Remove `"${where}"` from the `l1=` line |
+| Always two rows | Replace the `if`/`else` block at the end with its two-row branch |
+| Hide scratchpad link | Delete the `[ -n "$scratch" ]` line |
+| Hide reset countdowns | Remove `$(until_reset ...)` from the `5h` / `wk` lines |
 | Wider bar | Change `w=5` in `bar()` |
 | Different bar style | Replace `▰` / `▱` with `█` / `░` or `●` / `○` |
 | No emoji | Replace `🪨` with `CM` |
@@ -144,6 +156,10 @@ Edit `~/.claude/statusline.sh`. Changes apply on the next refresh, without a res
 **No usage bars.** You may be logged in with an API key instead of a Pro/Max account (check with `claude auth status`), or no message has been sent yet in the session. Update Claude Code with `claude update`.
 
 **No 🪨 badge.** Start a new session so the caveman hook writes its flag file, then check it with `cat ~/.claude/.caveman-active`. Inside Claude Code, run `/hooks` to confirm that caveman's SessionStart hook is registered.
+
+**Characters overlap.** Box-drawing and symbol glyphs such as `│`, `⎇` or `↻` have ambiguous widths, and tmux, the terminal and the font can disagree on them. The script uses plain ASCII separators for this reason. If you add your own symbols, prefer ASCII or common emoji.
+
+**Scratchpad link isn't clickable in tmux.** tmux 3.4+ forwards OSC 8 links only when the outer terminal has the `hyperlinks` feature. Add `set -as terminal-features ',*:hyperlinks'` to `~/.tmux.conf`, then run `tmux source-file ~/.tmux.conf` (or restart tmux).
 
 **Status line doesn't appear.** Make sure `settings.json` is valid JSON and the script is executable (`chmod +x`). Pipe the test JSON above into the script to see any errors.
 
@@ -172,20 +188,25 @@ This project is not affiliated with Anthropic or the caveman project.
 ```bash
 #!/usr/bin/env bash
 # claude-caveman-statusline
-# Compact Claude Code status line: caveman badge, model, folder,
-# context usage, session cost, and remaining 5-hour / weekly usage.
+# Compact Claude Code status line: caveman badge, model, project, git worktree,
+# context usage, session cost, remaining 5-hour / weekly usage with reset
+# countdowns, and a clickable link to the session's scratchpad folder.
 # Requires: jq, Claude Code >= 2.1.80 (usage bars need Pro/Max login)
 
 input=$(cat)
 j() { echo "$input" | jq -r "$1 // empty"; }
 
 model=$(j '.model.display_name')
-dir=$(basename "$(j '.workspace.current_dir')")
+cur=$(j '.workspace.current_dir')
+proj=$(j '.workspace.project_dir')
+wt=$(j '.worktree.name // .workspace.git_worktree')
+sid=$(j '.session_id')
 ctx=$(j '.context_window.used_percentage')
 cost=$(j '.cost.total_cost_usd')
 h5=$(j '.rate_limits.five_hour.used_percentage')
 d7=$(j '.rate_limits.seven_day.used_percentage')
 r5=$(j '.rate_limits.five_hour.resets_at')
+r7=$(j '.rate_limits.seven_day.resets_at')
 
 # Color by remaining %: green > 50, yellow > 20, red otherwise
 col() { local l=$1; ((l > 50)) && echo 32 || { ((l > 20)) && echo 33 || echo 31; }; }
@@ -198,6 +219,21 @@ bar() {
   printf '\e[%sm%s %d%%\e[0m' "$(col $left)" "$s" "$left"
 }
 
+# Dim countdown until a limit window resets: " (2h10)" or " (3d04h)"
+# Accepts epoch seconds or an ISO timestamp.
+until_reset() {
+  local r=$1 ts m
+  [ -z "$r" ] && return
+  [[ $r =~ ^[0-9]+$ ]] && ts=$r || ts=$(date -d "$r" +%s 2>/dev/null)
+  [ -z "$ts" ] && return
+  m=$(( (ts - $(date +%s)) / 60 )); ((m < 0)) && m=0
+  if ((m >= 1440)); then
+    printf ' \e[2m(%dd%02dh)\e[0m' $((m / 1440)) $((m % 1440 / 60))
+  else
+    printf ' \e[2m(%dh%02d)\e[0m' $((m / 60)) $((m % 60))
+  fi
+}
+
 # Caveman badge (plain for default mode, level shown otherwise)
 cave=""
 f=${CLAUDE_CONFIG_DIR:-$HOME/.claude}/.caveman-active
@@ -207,23 +243,61 @@ if [ -f "$f" ]; then
   cave="$tag "
 fi
 
-# Time until the 5-hour window resets (epoch or ISO timestamp)
-reset=""
-if [ -n "$r5" ]; then
-  [[ $r5 =~ ^[0-9]+$ ]] && ts=$r5 || ts=$(date -d "$r5" +%s 2>/dev/null)
-  [ -n "$ts" ] && { m=$(( (ts - $(date +%s)) / 60 )); ((m < 0)) && m=0; reset=" \e[2m$((m/60))h$(printf %02d $((m%60)))\e[0m"; }
+# Project name (launch dir); add the current subfolder when Claude moved away from it
+[ -z "$proj" ] && proj=$cur
+where="\e[1;34m$(basename "$proj")\e[0m"
+[ -n "$cur" ] && [ "$cur" != "$proj" ] && where+="\e[2m/\e[0m$(basename "$cur")"
+
+# Session scratchpad (Claude's working files): shown only when it holds files,
+# as an OSC 8 link (Ctrl+click / Cmd+click opens the folder)
+scratch=""
+if [ -n "$sid" ]; then
+  for base in "${CLAUDE_CODE_TMPDIR:-}" "${TMPDIR:-}" /tmp; do
+    [ -z "$base" ] && continue
+    for d in "${base%/}/claude-$(id -u)"/*/"$sid"/scratchpad; do
+      [ -d "$d" ] || continue
+      n=$(find "$d" -type f 2>/dev/null | wc -l)
+      ((n > 0)) && scratch="\e]8;;file://${d// /%20}\a📂 ${n}\e]8;;\a"
+      break 2
+    done
+  done
 fi
 
-out="${cave}${model} · ${dir}"
-[ -n "$ctx" ] && out+=" · ctx ${ctx%.*}%"
+# One line: where you work, then what you use. Dim labels and separators.
+# Separators and labels are plain ASCII: box-drawing and symbol glyphs have
+# ambiguous widths in tmux/VTE and can overlap neighbouring characters.
+D='\e[2m' R='\e[0m' sep=" \e[2m|\e[0m "
+join() { local o="" x; for x in "$@"; do [ -n "$x" ] && o+="${o:+$sep}$x"; done; printf '%s' "$o"; }
+
+l1=("${cave}\e[1m${model}\e[0m" "${where}")
+[ -n "$wt" ]      && l1+=("${D}wt${R} \e[35m${wt}\e[0m")
+[ -n "$scratch" ] && l1+=("$scratch")
+
+l2=()
+[ -n "$ctx" ]  && l2+=("${D}ctx${R} ${ctx%.*}%")
 # Session cost in USD (LC_NUMERIC=C so locales with a decimal comma still parse "0.42")
-[ -n "$cost" ] && out+=" · \$$(LC_NUMERIC=C printf '%.2f' "$cost")"
-[ -n "$h5" ]  && out+=" · 5h $(bar "$h5")${reset}"
+[ -n "$cost" ] && l2+=("\$$(LC_NUMERIC=C printf '%.2f' "$cost")")
+[ -n "$h5" ]   && l2+=("${D}5h${R} $(bar "$h5")$(until_reset "$r5")")
 if [ -n "$d7" ]; then
-  wl=$((100 - ${d7%.*}))
-  out+=" · wk \e[$(col $wl)m${wl}%\e[0m"
+  wl=$((100 - ${d7%.*})); ((wl < 0)) && wl=0
+  l2+=("${D}wk${R} \e[$(col $wl)m${wl}%\e[0m$(until_reset "$r7")")
 fi
-printf '%b\n' "$out"
+
+# Visible width: drop ANSI colors and OSC 8 links, count each emoji as 2 columns
+width() {
+  local t; t=$(printf '%b' "$1" | sed -E $'s/\e\\[[0-9;]*m//g; s/\e]8;;[^\a]*\a//g')
+  local e=${t//[^🪨📂]/}
+  echo $(( ${#t} + ${#e} ))
+}
+
+line=$(join "${l1[@]}" "${l2[@]}")
+# Too wide for the terminal (Claude Code sets COLUMNS)? Split into two rows.
+if [ -n "$COLUMNS" ] && ((COLUMNS > 0)) && (($(width "$line") > COLUMNS)); then
+  printf '%b\n' "$(join "${l1[@]}")"
+  ((${#l2[@]})) && printf '%b\n' "$(join "${l2[@]}")"
+else
+  printf '%b\n' "$line"
+fi
 ```
 
 </details>
