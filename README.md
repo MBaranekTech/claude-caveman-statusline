@@ -188,17 +188,33 @@ Edit `~/.claude/statusline.sh`. Changes apply on the next refresh, without a res
 
 ## Troubleshooting
 
-**No usage bars.** You may be logged in with an API key instead of a Pro/Max account (check with `claude auth status`), or no message has been sent yet in the session. Update Claude Code with `claude update`.
+Most problems are easiest to find by running the script by hand. Pipe the [test JSON](#test-without-claude-code) into it and look for errors.
 
-**No 🪨 badge.** Start a new session so the caveman hook writes its flag file, then check it with `cat ~/.claude/.caveman-active`. Inside Claude Code, run `/hooks` to confirm that caveman's SessionStart hook is registered.
+**The status line doesn't appear**
 
-**Characters overlap.** Box-drawing and symbol glyphs such as `│`, `⎇` or `↻` have ambiguous widths, and tmux, the terminal and the font can disagree on them. The script uses plain ASCII separators for this reason. If you add your own symbols, prefer ASCII or common emoji.
+- Check that `settings.json` is valid JSON: `jq . ~/.claude/settings.json > /dev/null && echo OK`.
+- Check that the script is executable: `chmod +x ~/.claude/statusline.sh`.
+- Check that `jq` is installed: `jq --version`.
+- If the caveman plugin set up its own status line on first run, point `statusLine.command` back to this script.
 
-**Scratchpad link isn't clickable in tmux.** tmux 3.4+ forwards OSC 8 links only when the outer terminal has the `hyperlinks` feature. Add `set -as terminal-features ',*:hyperlinks'` to `~/.tmux.conf`, then run `tmux source-file ~/.tmux.conf` (or restart tmux).
+**Something is missing**
 
-**Status line doesn't appear.** Make sure `settings.json` is valid JSON and the script is executable (`chmod +x`). Pipe the test JSON above into the script to see any errors.
+- **No usage bars (`5h`, `wk`)**: you may be logged in with an API key instead of a Pro/Max account. Check with `claude auth status`. The bars also appear only after the first message in a session. Update Claude Code with `claude update`.
+- **No reset countdown**: Claude Code didn't send `resets_at` for that window, or the window has just reset. It reappears after the next message.
+- **No 🪨 badge**: start a new session, so the caveman hook writes its flag file. Check it with `cat ~/.claude/.caveman-active`, and run `/hooks` in Claude Code to confirm that caveman's SessionStart hook is registered.
+- **No `wt` worktree**: it is shown only in a *linked* worktree (`git worktree add`) or a Claude Code worktree session, not in the main working tree.
+- **No `📂` scratchpad**: it is shown only when the scratchpad holds files. List the scratchpad folders with `ls -d /tmp/claude-$(id -u)/*/*/scratchpad`.
 
-**Caveman replaced my status line.** On first run, the caveman plugin may offer to set up its own status line. Decline, or point `statusLine.command` back to this script.
+**The scratchpad link isn't clickable**
+
+- Your terminal must support OSC 8 hyperlinks. Kitty, WezTerm, iTerm2 and GNOME Terminal do.
+- In tmux 3.4+, links work only when the outer terminal has the `hyperlinks` feature. Add `set -as terminal-features ',*:hyperlinks'` to `~/.tmux.conf`, then run `tmux source-file ~/.tmux.conf`.
+- With `set -g mouse on` in tmux, tmux may take the click. If Ctrl+click does nothing, try Ctrl+Shift+click. In many terminals, Shift sends the click to the terminal instead of tmux.
+
+**The layout looks wrong**
+
+- **Two rows instead of one**: the row is wider than the terminal, about 100 columns with every item shown. Widen the window, or hide items (see [Customization](#customization)).
+- **Characters overlap**: box-drawing and symbol glyphs such as `│`, `⎇` or `↻` have ambiguous widths, and tmux, the terminal and the font can disagree on them. The script uses plain ASCII for this reason. If you added your own symbols, replace them with ASCII or common emoji.
 
 ## How it was made
 
