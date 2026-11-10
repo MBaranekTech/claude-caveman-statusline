@@ -169,6 +169,8 @@ Edit `~/.claude/statusline.sh`. Changes apply on the next refresh, without a res
 
 I built this in a conversation with Claude. I started from the idea of a Codex-like status bar in Claude Code with the caveman badge and remaining-usage progress bars. Then I iterated on it in my real terminal, fixing a doubled `CAVEMAN:CAVEMAN` badge and making the layout less crowded, until it looked right.
 
+In a second round, I worked with Claude Code itself, which uses this status line. I asked for the project name, the git worktree, reset times for both limits, and a link to Claude's working files. The first version was too crowded. In tmux, symbols such as `│`, `⎇` and `↻` also overlapped their neighbours, because tmux, the terminal and the font disagreed on their width. We replaced them with plain ASCII. Then we put everything back on one row that splits into two only when the terminal is too narrow.
+
 ## Credits
 
 - [caveman](https://github.com/JuliusBrussee/caveman) by Julius Brussee, for the 🪨 mode and its flag file
